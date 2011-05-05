@@ -1,32 +1,63 @@
 <!DOCTYPE html>
+<!--  Wed May 4: 7 hours;
+      Thu May 5: 10am -
+-->
 <html>
 <head>
   <title>FinalsClub</title>
   <script src="http://code.jquery.com/jquery-1.6.min.js"></script>
+  <script src="http://ajax.microsoft.com/ajax/jquery.templates/beta1/jquery.tmpl.min.js"></script>
   <!--
-  We need a JS Post object:
-    { type: "post",
-      id: 999,
-      posvotes: 1,
-      negvotes: 1,
-      body: "This question is the body of the post!",
+  We need a Post object (modelled on EtherPad):
+    { objtype: "post",
+      meetingid: 888,
+      userid: 12345,
       username: "Bill Jones",
       useraffil: "student",
-      ageofpost: 534593,
-      isdemoted: false }
+      postid: 999,
+      body: "This question is the body of the post?",
+      posvotes: 1,
+      negvotes: 1,
+      isdeleted: false,
+      ispromoted: false,
+      isdemoted: false,
+      created: "2011-05-04 14:35:21" }
   
   -->
+  <script id="topPostTemplate" type="text/x-jQuery-tmpl">
+    // this template is used to generate Top Posts from an array received
+    // from the server.
+    <div class="postContainer">
+      <div class="postVoteContainer">
+        <div class="vote-tally-rect vote-up-rect">${posvotes}</div>
+        <div class="vote-tally-rect vote-dn-rect">${negvotes}</div>
+      </div>
+      <div class="postDisplayContainer">
+        <div class="postBody">${body}</div> 
+        <div class="postFooter">
+          <span class="userName">${username}</span>
+          <span class="userAffil">${useraffil}</span>
+        </div> 
+      </div>
+    </div>
+  </script>
   <script>
-    var dummyPost = 
-            { objtype: "post",
-              id: 999,
-              posvotes: 1,
-              negvotes: 1,
-              body: "This question is the body of the post!",
-              username: "Bill Jones",
-              useraffil: "student",
-              timeofpost: 534593,
-              isdemoted: false };
+    var dummyPost = { 
+      objtype: "post",
+      meetingid: 888,
+      userid: 12345,
+      username: "Bill Jones",
+      useraffil: "student",
+      postid: 999,
+      body: "This question is the body of the post?",
+      posvotes: 1,
+      negvotes: 1,
+      isdeleted: false,
+      ispromoted: false,
+      isdemoted: false,
+      created: "2011-05-04 14:35:21" };
+    var arrayOfPosts = [ dummyPost, dummyPost, dummyPost ];
+
     var userObj = { user: null, userAffil: null };
     function setUserNameAndAffil() {
       // add the real code to do this:
@@ -64,6 +95,12 @@
           $('#charsLeftMsg').text(" ");
 
         }
+      });
+      $('#replaceTopPosts').click(function() {
+        // clear out Top Posts served with the page;
+        $('#topPosts .postContainer').remove();
+        // render the handy array of dummy posts via template;
+        $("#topPostTemplate").tmpl(arrayOfPosts).appendTo("#topPosts");
       });
       $('#submitPost').click(function() {
         var msgBody = $('#enterPostTextarea').val();
@@ -175,9 +212,59 @@ body {
   border-bottom: 3px solid black;
   padding: 1em 1.5em;
 }
+#topPostsHeader {
+  padding-bottom: 0.5em;
+}
 #recentPosts {
   min-height: 6em;
   padding: 1em 1.5em;
+}
+#topPosts .postContainer {
+  border-top: 2px solid #333;
+  min-height: 5.3em;
+  background-color: #EEE;
+}
+#topPosts .postVoteContainer {
+  float: left;
+}
+#topPosts .postVoteContainer .vote-tally-rect {
+	width: 1.6em;
+	height: 1em;
+	border: 1px solid #444;
+	-moz-border-radius: 6px;
+	margin: 0.3em;
+	padding: 0.2em;
+	font-size: 1.3em;
+	text-align: right;
+}
+#topPosts .postVoteContainer .vote-up-rect {
+	background: transparent url(./images/arrow_up.png) no-repeat scroll 10% 50%;
+}
+#topPosts .postVoteContainer .vote-dn-rect {
+	background: transparent url(./images/arrow_dn.png) no-repeat scroll 10% 50%;
+}
+#topPosts .postDisplayContainer {
+	margin: 0.3em 0.3em 0.3em 4em;
+}
+#topPosts .postBody {
+  min-height: 2.7em;
+  border-left:  1px solid #D3CAEB;
+  border-top:   1px solid #D3CAEB;
+  border-right: 1px solid #D3CAEB;
+  font: 1em/1.2em Palatino, "Times New Roman", Times, serif;
+  overflow: hidden;
+  padding: 0.2em;
+}
+#topPosts .postFooter {
+  background-color: #D3CAEB;
+  color: #111111;
+  padding-left: 0.6em;
+}
+#topPosts .userName {
+  font: bold 1.2em Helvetica, sans-serif;
+}
+#topPosts .userAffil {
+  font: italic 1em Helvetica, sans-serif;
 }
   </style>
 </head>
@@ -190,6 +277,12 @@ body {
     <div class="lectureDesc">Lecture #6: April 3, 2001: Evolution</div>
   </div>
   <div id="notesComponent">EtherPad component goes here!</div>
+
+  <!-- temporary -->
+  <div style="margin: 4em;">
+    <input type="button" id="replaceTopPosts" value="Replace Top Posts" />
+  </div>
+
 </div><!-- notesContainer -->
 
 <div id="backchat">
@@ -254,13 +347,51 @@ body {
 
 </div><!-- userBox -->
 
-<div id="topPosts"><span id="maxTopPosts">6</span> Highest Rated Posts:
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <input type="button" id="chgTopLimit" value="change number displayed" />
+<div id="topPosts">
+  <div id="topPostsHeader">
+    <span id="maxTopPosts">6</span> Highest Rated Posts:
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <input type="button" id="chgTopLimit" value="change number displayed" />
+  </div>
+  
+  <!-- repeated for each top post; -->
+  <div class="postContainer">
+    <div class="postVoteContainer">
+      <div class="vote-tally-rect vote-up-rect">5</div>
+      <div class="vote-tally-rect vote-dn-rect">2</div>
+    </div>
+    <div class="postDisplayContainer">
+      <div class="postBody">The body of the post may ask a question?</div> 
+      <div class="postFooter">
+        <span class="userName">George</span>
+        <span class="userAffil">student</span>
+      </div> 
+    </div>
+  </div><!-- postContainer -->
+  
+  <!-- repeated for each top post; -->
+  <div class="postContainer">
+    <div class="postVoteContainer">
+      <div class="vote-tally-rect vote-up-rect">5</div>
+      <div class="vote-tally-rect vote-dn-rect">2</div>
+    </div>
+    <div class="postDisplayContainer">
+      <div class="postBody">The body of the post may ask a question?</div> 
+      <div class="postFooter">
+        <span class="userName">George</span>
+        <span class="userAffil">student</span>
+      </div> 
+    </div>
+  </div><!-- postContainer -->
+  
 </div>
-<div id="recentPosts"><span id="maxRecentPosts">6</span> Most Recent Posts:
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <input type="button" id="chgRecentLimit" value="change number displayed" />
+
+<div id="recentPosts">
+  <div id="topPostsHeader">
+    <span id="maxRecentPosts">6</span> Most Recent Posts:
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    <input type="button" id="chgRecentLimit" value="change number displayed" />
+  </div>
 </div>
     
     
