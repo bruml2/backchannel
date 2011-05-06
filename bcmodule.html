@@ -1,47 +1,16 @@
 <!DOCTYPE html>
 <!--  Wed May 4: 7 hours;
-      Thu May 5: 10am -
+      Thu May 5: 6 hours;
 -->
 <html>
 <head>
   <title>FinalsClub</title>
   <script src="http://code.jquery.com/jquery-1.6.min.js"></script>
   <script src="http://ajax.microsoft.com/ajax/jquery.templates/beta1/jquery.tmpl.min.js"></script>
-  <!--
-  We need a Post object (modelled on EtherPad):
-    { objtype: "post",
-      meetingid: 888,
-      userid: 12345,
-      username: "Bill Jones",
-      useraffil: "student",
-      postid: 999,
-      body: "This question is the body of the post?",
-      posvotes: 1,
-      negvotes: 1,
-      isdeleted: false,
-      ispromoted: false,
-      isdemoted: false,
-      created: "2011-05-04 14:35:21" }
-  
-  -->
-  <script id="topPostTemplate" type="text/x-jQuery-tmpl">
-    // this template is used to generate Top Posts from an array received
-    // from the server.
-    <div class="postContainer">
-      <div class="postVoteContainer">
-        <div class="vote-tally-rect vote-up-rect">${posvotes}</div>
-        <div class="vote-tally-rect vote-dn-rect">${negvotes}</div>
-      </div>
-      <div class="postDisplayContainer">
-        <div class="postBody">${body}</div> 
-        <div class="postFooter">
-          <span class="userName">${username}</span>
-          <span class="userAffil">${useraffil}</span>
-        </div> 
-      </div>
-    </div>
-  </script>
+  <script src="http://cdn.socket.io/stable/socket.io.js"></script>
   <script>
+    // We need a Post object (modelled on EtherPad):
+    //  [the schoolid and courseid are implied in the meetingid];
     var dummyPost = { 
       objtype: "post",
       meetingid: 888,
@@ -58,23 +27,37 @@
       created: "2011-05-04 14:35:21" };
     var arrayOfPosts = [ dummyPost, dummyPost, dummyPost ];
 
-    var userObj = { user: null, userAffil: null };
+    var currMeetingID = "9876";
+    var userObj = { userID: null, userName: null, userAffil: null };
     function setUserNameAndAffil() {
       // add the real code to do this:
-      userObj.user = "Beardsley";
+      userObj.userID = "1234";
+      userObj.userName = "Beardsley";
       userObj.userAffil = "student";
     }
-    // this is the callback for the "Submit Post" button;
+    
+    var socket = null;
     function assembleNewPostObj(msgBody) {
-      // the ID is assigned at the server;
-      var postObj = { objtype: "post", id: null,
-                      posvotes: 0, negvotes: 0, isdemoted: false };
+      // the postid is assigned at the server;
+      var postObj = { objtype: "post", postid: null,
+                      posvotes: 0, negvotes: 0, isdeleted: false,
+                      ispromoted: false, isdemoted: false };
+      postObj.meetingid = currMeetingID;
+      postObj.userid    = userObj.userID;
+      postObj.username  = userObj.userName;
+      postObj.useraffil = userObj.userAffil;
       postObj.timeofpost = new DateTime;
       postObj.body = msgBody;
       return postObj;
     }
-    function sendNewPostToServer(post) {
-      // TO BE WRITTEN;
+    function renderArrayOfTopPostsToScreen(arrayOfPosts) {
+      $('#topPosts .topPostContainer').remove();
+      $("#topPostTemplate").tmpl(arrayOfPosts).appendTo("#topPosts");      
+    }
+    // this function needs work;
+    function renderArrayOfRecentPostsToScreen(arrayOfPosts) {
+      $('#recentPosts .topPostContainer').remove();
+      $("#recentPostTemplate").tmpl(arrayOfPosts).appendTo("#recentPosts");      
     }
     $(document).ready(function(){
       // fill in holes;
@@ -96,18 +79,39 @@
 
         }
       });
+      // this is just temporary for testing;
       $('#replaceTopPosts').click(function() {
-        // clear out Top Posts served with the page;
-        $('#topPosts .postContainer').remove();
-        // render the handy array of dummy posts via template;
-        $("#topPostTemplate").tmpl(arrayOfPosts).appendTo("#topPosts");
+        renderArrayOfTopPostsToScreen(arrayOfPosts);
       });
       $('#submitPost').click(function() {
         var msgBody = $('#enterPostTextarea').val();
-        var newPost = assembleNewPostObj(msgBody);
-        sendNewPostToServer(newPost);
+        socket.send(assembleNewPostObj(msgBody));
+        $('#enterPostTextarea').val('');
       });
-    });
+      // create socket to server;
+      socket = new io.Socket(null, {port: 8080, rememberTransport: false});
+      // incoming messages are either data for the Top Posts section or data for
+      // the Recent Posts section; in either case, the message object has one
+      // property ("topPosts" or "recentPosts") whose value is an array of Post
+      // objects.  We render those objects to the appropriate div by template.
+      socket.on('message', function(obj) {
+        if ('topPosts' in obj){
+          renderArrayOfTopPostsToScreen(arrayOfPosts)
+        } else if ('recentPosts' in obj) {
+          renderArrayOfRecentPostsToScreen(arrayOfPosts)
+        } else {
+          alert("Unknown message type received on socket");
+        }
+      });
+      $('#notesComponent').after('<div>Socket is NOW connected!</div>');
+      socket.on('connect', function(){ 
+        $('#notesComponent').after('<div>Socket IS connected!</div>');
+      });
+      socket.on('disconnect', function(){ 
+        addParaToChat({ message: ['System', 'Disconnected']})
+      });
+
+    }); // (document).ready();
   </script>
   <style>
 body {
@@ -219,7 +223,7 @@ body {
   min-height: 6em;
   padding: 1em 1.5em;
 }
-#topPosts .postContainer {
+#topPosts .topPostContainer {
   border-top: 2px solid #333;
   min-height: 5.3em;
   background-color: #EEE;
@@ -355,7 +359,7 @@ body {
   </div>
   
   <!-- repeated for each top post; -->
-  <div class="postContainer">
+  <div class="topPostContainer">
     <div class="postVoteContainer">
       <div class="vote-tally-rect vote-up-rect">5</div>
       <div class="vote-tally-rect vote-dn-rect">2</div>
@@ -367,10 +371,10 @@ body {
         <span class="userAffil">student</span>
       </div> 
     </div>
-  </div><!-- postContainer -->
+  </div><!-- topPostContainer -->
   
   <!-- repeated for each top post; -->
-  <div class="postContainer">
+  <div class="topPostContainer">
     <div class="postVoteContainer">
       <div class="vote-tally-rect vote-up-rect">5</div>
       <div class="vote-tally-rect vote-dn-rect">2</div>
@@ -382,20 +386,52 @@ body {
         <span class="userAffil">student</span>
       </div> 
     </div>
-  </div><!-- postContainer -->
+  </div><!-- topPostContainer -->
   
 </div>
 
 <div id="recentPosts">
-  <div id="topPostsHeader">
+  <div id="recentPostsHeader">
     <span id="maxRecentPosts">6</span> Most Recent Posts:
     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
     <input type="button" id="chgRecentLimit" value="change number displayed" />
   </div>
+  <!-- recentPostContainers will be added here -->
 </div>
-    
     
 </div> <!-- backchat -->
 </div> <!-- container -->
+<!-- these templates are used to generate Top Posts from an array received from
+     the server. The unknown mime type causes the browser to ignore it -->
+<script id="topPostTemplate" type="text/x-jQuery-tmpl">
+  <div class="topPostContainer">
+    <div class="postVoteContainer">
+      <div class="vote-tally-rect vote-up-rect">${posvotes}</div>
+      <div class="vote-tally-rect vote-dn-rect">${negvotes}</div>
+    </div>
+    <div class="postDisplayContainer">
+      <div class="postBody">${body}</div> 
+      <div class="postFooter">
+        <span class="userName">${username}</span>
+        <span class="userAffil">${useraffil}</span>
+      </div> 
+    </div>
+  </div>
+</script>
+<script id="recentPostTemplate" type="text/x-jQuery-tmpl">
+  <div class="recentPostContainer">
+    <div class="postVoteContainer">
+      <div class="vote-tally-rect vote-up-rect">${posvotes}</div>
+      <div class="vote-tally-rect vote-dn-rect">${negvotes}</div>
+    </div>
+    <div class="postDisplayContainer">
+      <div class="postBody">${body}</div> 
+      <div class="postFooter">
+        <span class="userName">${username}</span>
+        <span class="userAffil">${useraffil}</span>
+      </div> 
+    </div>
+  </div>
+</script>
 </body>
 </html>
