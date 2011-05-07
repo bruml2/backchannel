@@ -96,8 +96,6 @@
       });
       // create socket to server;
       socket = new io.Socket(null, {port: 8080, rememberTransport: false});
-      $('#debugDisplay').append('<p>SOCKET created on port ' + 
-                                 socket.options.port + '</p>');
       // incoming messages are data for the Top Posts section or data for
       // the Recent Posts section; in either case, the message object has one
       // property ("topPosts" or "recentPosts") whose value is an array of Post
@@ -122,6 +120,11 @@
       socket.on('disconnect', function(){ 
         $('#debugDisplay').append('<p>SOCKET disconnected!</p>');
       });
+      // =============>  NB!! <==============
+      socket.connect();
+
+      $('#debugDisplay').append('<p>SOCKET created on port ' + 
+                                 socket.options.port + '</p>');
 
       $('#enterPostTextarea').val("So this is the text of the first message " +
             "helpfully automatically placed in the textarea!");

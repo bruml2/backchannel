@@ -38,13 +38,14 @@ var server = http.createServer(function(request, response){
       break;
     
     case '/bcmodule.html':
-      console.log("----------------------------------");
+      console.log("==================================");
       console.log("Handling request for bcmodule.html");
       // TODO: get param value 'username':
       var query = url.parse(request.url, true).query;
       console.log("URL is: " + request.url);
       console.log("Query is: " + util.inspect(query));
       console.log("username param is: " + query['username']);
+      console.log("----------------------------------");
       
       fs.readFile(__dirname + pathname, function(err, data){
         if (err) { return send404(pathname, response); }
@@ -52,6 +53,19 @@ var server = http.createServer(function(request, response){
         response.write(data, 'utf8');
         response.end();
       });
+      break;
+      
+    case '/bcmodule.html':
+      fs.readFile(__dirname + pathname, function(err, data){
+        if (err) { return send404(pathname, response); }
+        response.writeHead(200,
+          //{'Content-Type': pathname == 'json.js' ? 'text/javascript' : 'text/html'})
+          {'Content-Type': pathname.slice(-3) == '.js' ? 'text/javascript' : 'text/html'})
+        response.write(data, 'utf8');
+        response.end();
+      });
+      break;
+
       break;
       
     default: send404(pathname, response);
@@ -77,11 +91,6 @@ var topPosts = [];
 var recentPosts = [];
   
 serverListener.on('connection', function(client){
-  console.log("  Client: " + client.sessionId + " just connected");
-  //console.log("Let's look at the client's listener's 'clientsIndex':\n" +
-  //            "  ==> clients are indexed by their session ids\n" +
-  //            util.inspect(client.listener.clientsIndex));
-  
   // ====> we're in the connection callback: executes once;
   // send() sends a message TO THE CLIENT browser that just connected;
   // when browser sees that it contains a 'topPosts' property, it is treated specially;
