@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <!--  Wed May 4: 7 hours;
       Thu May 5: 6 hours;
+      Fri May 6: x hours;
 -->
 <html>
 <head>
@@ -46,7 +47,7 @@
       postObj.userid    = userObj.userID;
       postObj.username  = userObj.userName;
       postObj.useraffil = userObj.userAffil;
-      postObj.timeofpost = new DateTime;
+      postObj.timeofpost = (new Date).getTime();
       postObj.body = msgBody;
       return postObj;
     }
@@ -62,7 +63,7 @@
     $(document).ready(function(){
       // fill in holes;
       setUserNameAndAffil();
-      $('.userName').text(userObj['user']);
+      $('.userName').text(userObj['userName']);
       $('.userAffil').text(userObj['userAffil']);
       // add event handlers;
       $('#backchatHeader input[type="button"]').click(function() {
@@ -84,33 +85,46 @@
         renderArrayOfTopPostsToScreen(arrayOfPosts);
       });
       $('#submitPost').click(function() {
-        var msgBody = $('#enterPostTextarea').val();
-        socket.send(assembleNewPostObj(msgBody));
+        var newPostObj = assembleNewPostObj($('#enterPostTextarea').val());
+        // TODO: may have to substitute "<br />" for newlines;
+        $('#debugDisplay .newpost').remove();
+        $('#debugDisplay').append('<p class="newpost">NEW POST: ' + newPostObj.body + '</p>');
+        // can the data be an object?  WebSockets wants a string;
+        // socket.send(JSON.stringify(newPostObj));
+        socket.send(newPostObj);
         $('#enterPostTextarea').val('');
       });
       // create socket to server;
       socket = new io.Socket(null, {port: 8080, rememberTransport: false});
-      // incoming messages are either data for the Top Posts section or data for
+      $('#debugDisplay').append('<p>SOCKET created on port ' + 
+                                 socket.options.port + '</p>');
+      // incoming messages are data for the Top Posts section or data for
       // the Recent Posts section; in either case, the message object has one
       // property ("topPosts" or "recentPosts") whose value is an array of Post
-      // objects.  We render those objects to the appropriate div by template.
+      // objects.  Probably will not send vote messages but rather new arrays of
+      // posts with updated vote counts.
       socket.on('message', function(obj) {
+        $('#debugDisplay').append('<p>MESSAGE arrived</p>');
         if ('topPosts' in obj){
           renderArrayOfTopPostsToScreen(arrayOfPosts)
         } else if ('recentPosts' in obj) {
           renderArrayOfRecentPostsToScreen(arrayOfPosts)
+        } else if ('vote' in obj) {
+          // TODO: write recordVote();
+          // recordVote(obj['vote']);
         } else {
-          alert("Unknown message type received on socket");
+          $('#debugDisplay').append('<p>Unknown message type received on socket</p>');
         }
       });
-      $('#notesComponent').after('<div>Socket is NOW connected!</div>');
       socket.on('connect', function(){ 
-        $('#notesComponent').after('<div>Socket IS connected!</div>');
+        $('#debugDisplay').append('<p>SOCKET connected!</p>');
       });
       socket.on('disconnect', function(){ 
-        addParaToChat({ message: ['System', 'Disconnected']})
+        $('#debugDisplay').append('<p>SOCKET disconnected!</p>');
       });
 
+      $('#enterPostTextarea').val("So this is the text of the first message " +
+            "helpfully automatically placed in the textarea!");
     }); // (document).ready();
   </script>
   <style>
@@ -242,7 +256,7 @@ body {
 	text-align: right;
 }
 #topPosts .postVoteContainer .vote-up-rect {
-	background: transparent url(./images/arrow_up.png) no-repeat scroll 10% 50%;
+	background: transparent url(images/arrow_up.png) no-repeat scroll 10% 50%;
 }
 #topPosts .postVoteContainer .vote-dn-rect {
 	background: transparent url(./images/arrow_dn.png) no-repeat scroll 10% 50%;
@@ -265,7 +279,7 @@ body {
   padding-left: 0.6em;
 }
 #topPosts .userName {
-  font: bold 1.2em Helvetica, sans-serif;
+  font: bold 1em Helvetica, sans-serif;
 }
 #topPosts .userAffil {
   font: italic 1em Helvetica, sans-serif;
@@ -283,7 +297,11 @@ body {
   <div id="notesComponent">EtherPad component goes here!</div>
 
   <!-- temporary -->
-  <div style="margin: 4em;">
+  <div id="debugDisplay"
+       style="margin-top: 4em; 
+              padding: 0.8em; 
+              border: 2px solid #ddd; 
+              text-align: center;">
     <input type="button" id="replaceTopPosts" value="Replace Top Posts" />
   </div>
 
@@ -358,35 +376,6 @@ body {
     <input type="button" id="chgTopLimit" value="change number displayed" />
   </div>
   
-  <!-- repeated for each top post; -->
-  <div class="topPostContainer">
-    <div class="postVoteContainer">
-      <div class="vote-tally-rect vote-up-rect">5</div>
-      <div class="vote-tally-rect vote-dn-rect">2</div>
-    </div>
-    <div class="postDisplayContainer">
-      <div class="postBody">The body of the post may ask a question?</div> 
-      <div class="postFooter">
-        <span class="userName">George</span>
-        <span class="userAffil">student</span>
-      </div> 
-    </div>
-  </div><!-- topPostContainer -->
-  
-  <!-- repeated for each top post; -->
-  <div class="topPostContainer">
-    <div class="postVoteContainer">
-      <div class="vote-tally-rect vote-up-rect">5</div>
-      <div class="vote-tally-rect vote-dn-rect">2</div>
-    </div>
-    <div class="postDisplayContainer">
-      <div class="postBody">The body of the post may ask a question?</div> 
-      <div class="postFooter">
-        <span class="userName">George</span>
-        <span class="userAffil">student</span>
-      </div> 
-    </div>
-  </div><!-- topPostContainer -->
   
 </div>
 
@@ -401,6 +390,37 @@ body {
     
 </div> <!-- backchat -->
 </div> <!-- container -->
+<div id="hiddenTopPosts" style="display: none; ">
+  <!-- repeated for each top post; -->
+  <div class="topPostContainer">
+    <div class="postVoteContainer">
+      <div class="vote-tally-rect vote-up-rect">5</div>
+      <div class="vote-tally-rect vote-dn-rect">2</div>
+    </div>
+    <div class="postDisplayContainer">
+      <div class="postBody">The body of the post may ask a question?</div> 
+      <div class="postFooter">
+        <span class="userName">Sammy</span>&nbsp;&nbsp;&nbsp;
+        <span class="userAffil">student</span>
+      </div> 
+    </div>
+  </div><!-- topPostContainer -->
+  
+  <!-- repeated for each top post; -->
+  <div class="topPostContainer">
+    <div class="postVoteContainer">
+      <div class="vote-tally-rect vote-up-rect">5</div>
+      <div class="vote-tally-rect vote-dn-rect">2</div>
+    </div>
+    <div class="postDisplayContainer">
+      <div class="postBody">The body of the post may ask a very good question?</div> 
+      <div class="postFooter">
+        <span class="userName">George</span>&nbsp;&nbsp;&nbsp;
+        <span class="userAffil">student</span>
+      </div> 
+    </div>
+  </div><!-- topPostContainer -->
+</div>
 <!-- these templates are used to generate Top Posts from an array received from
      the server. The unknown mime type causes the browser to ignore it -->
 <script id="topPostTemplate" type="text/x-jQuery-tmpl">
@@ -427,7 +447,7 @@ body {
     <div class="postDisplayContainer">
       <div class="postBody">${body}</div> 
       <div class="postFooter">
-        <span class="userName">${username}</span>
+        <span class="userName">${username}</span>&nbsp;&nbsp;&nbsp;
         <span class="userAffil">${useraffil}</span>
       </div> 
     </div>
