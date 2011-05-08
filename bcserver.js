@@ -4,10 +4,16 @@
  */
 
 /**
- *  Current awful situation: server starts up; sends log messages for:
- *    - listening for http traffic on 8080;
- *    - socket.io is accepting connections;
- *  BUT never get the connection event!
+ *  BAD BUG: in browser, forgot to issue the socket.connect();
+ *  FLASH: Firefox 4 ships with websockets enables but unavailable because
+ *         of a security firewall; use "about:config" to set
+ *         network.websocket.override-security-block to true;
+ *         Safari 5.0.5 works out of the box; 
+ *
+ *  NOW: client disconnects after about 15 seconds;
+ *       - connecting with flashsocket"; there's an error in socket.io.js:
+ *           self.__flash.getReadyState is not a function  line 1651
+ *
  */
  
 var http = require('http');
@@ -55,7 +61,7 @@ var server = http.createServer(function(request, response){
       });
       break;
       
-    case '/bcmodule.html':
+    case '/socket.io.js':
       fs.readFile(__dirname + pathname, function(err, data){
         if (err) { return send404(pathname, response); }
         response.writeHead(200,
@@ -89,29 +95,60 @@ var serverListener = io.listen(server);
 var allPosts = [];
 var topPosts = [];
 var recentPosts = [];
+
+function assembleTopAndRecentPostArrays() {
+  recentPosts = allPosts.reverse();
+  // should be sorting allPosts by votevalue;
+  topPosts = allPosts;
+}
+
+var dummyPost = { 
+  objtype: "post",
+  meetingid: 888,
+  userid: 12345,
+  username: "Bill Jones",
+  useraffil: "student",
+  postid: 999,
+  body: "This question is the body of the post?",
+  posvotes: 1,
+  negvotes: 1,
+  isdeleted: false,
+  ispromoted: false,
+  isdemoted: false,
+  created: "2011-05-04 14:35:21" };
+topPosts = [ dummyPost ];
   
 serverListener.on('connection', function(client){
   // ====> we're in the connection callback: executes once;
   // send() sends a message TO THE CLIENT browser that just connected;
   // when browser sees that it contains a 'topPosts' property, it is treated specially;
-  client.send({ "topPosts": topPosts });
-  console.log("Sent " + topPosts.length + " topPosts:\n" + util.inspect(topPosts));
+  client.send( { "topPosts": topPosts } );
+  client.send( { "recentPosts": recentPosts } );
+  console.log("Sent " + topPosts.length + " accumulated topPosts.");
+  console.log("Sent " + recentPosts.length + " accumulated recentPosts.");
   // sends a message to all other clients; equivalent to:
   //    Listener::broadcast(message, client.sessionid);
-  client.broadcast({ announcement: '=====> Hey! ' + client.sessionId + ' connected' });
+  client.broadcast({ "announcement": 'Hey! ' + client.sessionId + ' connected' });
   
   client.on('message', function(message){
-    console.log("MESSAGE received from client: " + client.sessionId);
-    var msg = { message: [client.sessionId, message] };
-    allPosts.push(msg);
-    topPosts.push(msg);
-    // maximum of 15 messages in the buffer at once;
-    if (buffer.length > 15) buffer.shift();
-    client.broadcast(msg);
+    if (message.objtype == "post") {
+      console.log("POST received from client: " + client.sessionId);
+      console.log(message);
+      allPosts.push(message);
+      console.log("now have " + allPosts.length + " posts in all");
+      assembleTopAndRecentPostArrays();
+      client.broadcast( { "topPosts": topPosts } );
+      client.broadcast( { "recentPosts": recentPosts } );
+    } else if (message.objtype == "vote") {
+      console.log("VOTE received from client: " + client.sessionId);
+      // code here to tally the vote and send out new top and recent arrays;
+    } else {
+      console.log("UNKNOWN message received from client: " + client.sessionId);
+    }
   });
 
   client.on('disconnect', function(){
-    console.log("Client: " + client.sessionId + " disconnected");
+    // console.log("Client: " + client.sessionId + " disconnected");
     client.broadcast({ announcement: client.sessionId + ' disconnected' });
   });
 });

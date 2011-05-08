@@ -10,24 +10,6 @@
   <script src="http://ajax.microsoft.com/ajax/jquery.templates/beta1/jquery.tmpl.min.js"></script>
   <script src="http://cdn.socket.io/stable/socket.io.js"></script>
   <script>
-    // We need a Post object (modelled on EtherPad):
-    //  [the schoolid and courseid are implied in the meetingid];
-    var dummyPost = { 
-      objtype: "post",
-      meetingid: 888,
-      userid: 12345,
-      username: "Bill Jones",
-      useraffil: "student",
-      postid: 999,
-      body: "This question is the body of the post?",
-      posvotes: 1,
-      negvotes: 1,
-      isdeleted: false,
-      ispromoted: false,
-      isdemoted: false,
-      created: "2011-05-04 14:35:21" };
-    var arrayOfPosts = [ dummyPost, dummyPost, dummyPost ];
-
     var currMeetingID = "9876";
     var userObj = { userID: null, userName: null, userAffil: null };
     function setUserNameAndAffil() {
@@ -36,21 +18,24 @@
       userObj.userName = "Beardsley";
       userObj.userAffil = "student";
     }
-    
-    var socket = null;
+    // the Post object is modelled on EtherPad:
+    //  [the schoolid and courseid are implied in the meetingid];
     function assembleNewPostObj(msgBody) {
       // the postid is assigned at the server;
       var postObj = { objtype: "post", postid: null,
-                      posvotes: 0, negvotes: 0, isdeleted: false,
-                      ispromoted: false, isdemoted: false };
+                      posvotes: 0, negvotes: 0, votevalue: 0,
+                      isdeleted: false, ispromoted: false, isdemoted: false };
       postObj.meetingid = currMeetingID;
       postObj.userid    = userObj.userID;
       postObj.username  = userObj.userName;
       postObj.useraffil = userObj.userAffil;
-      postObj.timeofpost = (new Date).getTime();
+      postObj.created = (new Date).getTime();
       postObj.body = msgBody;
       return postObj;
     }
+    var arrayOfPosts = [ assembleNewPostObj("First of the existing posts."),
+                         assembleNewPostObj("Second of the existing posts."),
+                         assembleNewPostObj("Third of the existing posts.")];
     function renderArrayOfTopPostsToScreen(arrayOfPosts) {
       $('#topPosts .topPostContainer').remove();
       $("#topPostTemplate").tmpl(arrayOfPosts).appendTo("#topPosts");      
@@ -95,21 +80,29 @@
         $('#enterPostTextarea').val('');
       });
       // create socket to server;
-      socket = new io.Socket(null, {port: 8080, rememberTransport: false});
+      var socket = new io.Socket(null, {port: 8080,
+                                        transports: ['websocket'],
+                                        rememberTransport: false});
       // incoming messages are data for the Top Posts section or data for
       // the Recent Posts section; in either case, the message object has one
       // property ("topPosts" or "recentPosts") whose value is an array of Post
       // objects.  Probably will not send vote messages but rather new arrays of
       // posts with updated vote counts.
+      var messagesArrived = 0;
       socket.on('message', function(obj) {
-        $('#debugDisplay').append('<p>MESSAGE arrived</p>');
+        messagesArrived += 1;
         if ('topPosts' in obj){
-          renderArrayOfTopPostsToScreen(arrayOfPosts)
+          $('#debugDisplay').append('<p>MESSAGE ' + messagesArrived + ' arrived: topPosts</p>');
+          renderArrayOfTopPostsToScreen(obj.topPosts)
         } else if ('recentPosts' in obj) {
-          renderArrayOfRecentPostsToScreen(arrayOfPosts)
+          $('#debugDisplay').append('<p>MESSAGE ' + messagesArrived + ' arrived: recentPosts</p>');
+          renderArrayOfRecentPostsToScreen(obj.recentPosts)
         } else if ('vote' in obj) {
           // TODO: write recordVote();
           // recordVote(obj['vote']);
+        } else if ('announcement' in obj) {
+          $('#debugDisplay').append('<p>MESSAGE ' + messagesArrived + ': ' + 
+                  obj['announcement'] + '</p>');
         } else {
           $('#debugDisplay').append('<p>Unknown message type received on socket</p>');
         }
@@ -122,9 +115,6 @@
       });
       // =============>  NB!! <==============
       socket.connect();
-
-      $('#debugDisplay').append('<p>SOCKET created on port ' + 
-                                 socket.options.port + '</p>');
 
       $('#enterPostTextarea').val("So this is the text of the first message " +
             "helpfully automatically placed in the textarea!");
