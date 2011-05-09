@@ -1,11 +1,14 @@
 <!DOCTYPE html>
 <!--  Wed May 4: 7 hours;
       Thu May 5: 6 hours;
-      Fri May 6: x hours;
+      Fri May 6: 5 hours;
+      Sat May 7: 5 hours;
+      Sun May 8: 6 hours;
 -->
 <html>
 <head>
   <title>FinalsClub</title>
+  <link rel="shortcut icon" href="rumlfavicon.ico">
   <script src="http://code.jquery.com/jquery-1.6.min.js"></script>
   <script src="http://ajax.microsoft.com/ajax/jquery.templates/beta1/jquery.tmpl.min.js"></script>
   <script src="http://cdn.socket.io/stable/socket.io.js"></script>
@@ -42,8 +45,11 @@
     }
     // this function needs work;
     function renderArrayOfRecentPostsToScreen(arrayOfPosts) {
-      $('#recentPosts .topPostContainer').remove();
+      $('#recentPosts .recentPostContainer').remove();
       $("#recentPostTemplate").tmpl(arrayOfPosts).appendTo("#recentPosts");      
+    }
+    function assembleVoteObj(postid, upOrDown) {
+      return { "objtype": "vote", "postid": postid, "direction": upOrDown };
     }
     $(document).ready(function(){
       // fill in holes;
@@ -79,6 +85,17 @@
         socket.send(newPostObj);
         $('#enterPostTextarea').val('');
       });
+      $('.vote-tally-rect').live("click", function() {
+        var postid = $(this).parent().attr('data-postid');
+        var direction = $(this).hasClass("vote-up") ? "up" : "down";
+        console.log("NEW PostID is " + postid + "; Direction is " + direction);
+        var newVoteObj = assembleVoteObj(postid, direction);
+        socket.send(newVoteObj);
+        // increment current count locally;
+        var currentVote = $(this).text();
+        $(this).text( parseInt(currentVote) + 1 );
+        $(this).css('background-color', 'silver');
+      });
       // create socket to server;
       var socket = new io.Socket(null, {port: 8080,
                                         transports: ['websocket'],
@@ -91,11 +108,16 @@
       var messagesArrived = 0;
       socket.on('message', function(obj) {
         messagesArrived += 1;
+        console.log("Message " + messagesArrived + " has arrived.");
         if ('topPosts' in obj){
           $('#debugDisplay').append('<p>MESSAGE ' + messagesArrived + ' arrived: topPosts</p>');
+          console.log("These are the topPosts: ");
+          obj.topPosts.forEach(function(el) { console.log(el.postid + " - " + el.posvotes); });
           renderArrayOfTopPostsToScreen(obj.topPosts)
         } else if ('recentPosts' in obj) {
           $('#debugDisplay').append('<p>MESSAGE ' + messagesArrived + ' arrived: recentPosts</p>');
+          console.log("These are the recentPosts: ");
+          obj.recentPosts.forEach(function(el) { console.log(el.postid + " - " + el.created); });
           renderArrayOfRecentPostsToScreen(obj.recentPosts)
         } else if ('vote' in obj) {
           // TODO: write recordVote();
@@ -104,7 +126,7 @@
           $('#debugDisplay').append('<p>MESSAGE ' + messagesArrived + ': ' + 
                   obj['announcement'] + '</p>');
         } else {
-          $('#debugDisplay').append('<p>Unknown message type received on socket</p>');
+          $('#debugDisplay').append('<p>Unknown message type received on socket.</p>');
         }
       });
       socket.on('connect', function(){ 
@@ -248,11 +270,11 @@ body {
 	font-size: 1.3em;
 	text-align: right;
 }
-#topPosts .postVoteContainer .vote-up-rect {
-	background: transparent url(images/arrow_up.png) no-repeat scroll 10% 50%;
+.postVoteContainer .vote-up {
+	background: transparent url(/arrow_up.png) no-repeat scroll 10% 50%;
 }
-#topPosts .postVoteContainer .vote-dn-rect {
-	background: transparent url(./images/arrow_dn.png) no-repeat scroll 10% 50%;
+.postVoteContainer .vote-dn {
+	background: transparent url(/arrow_dn.png) no-repeat scroll 10% 50%;
 }
 #topPosts .postDisplayContainer {
 	margin: 0.3em 0.3em 0.3em 4em;
@@ -418,9 +440,9 @@ body {
      the server. The unknown mime type causes the browser to ignore it -->
 <script id="topPostTemplate" type="text/x-jQuery-tmpl">
   <div class="topPostContainer">
-    <div class="postVoteContainer">
-      <div class="vote-tally-rect vote-up-rect">${posvotes}</div>
-      <div class="vote-tally-rect vote-dn-rect">${negvotes}</div>
+    <div class="postVoteContainer" data-postid="${postid}">
+      <div class="vote-tally-rect vote-up">${posvotes}</div>
+      <div class="vote-tally-rect vote-dn">${negvotes}</div>
     </div>
     <div class="postDisplayContainer">
       <div class="postBody">${body}</div> 
@@ -433,9 +455,9 @@ body {
 </script>
 <script id="recentPostTemplate" type="text/x-jQuery-tmpl">
   <div class="recentPostContainer">
-    <div class="postVoteContainer">
-      <div class="vote-tally-rect vote-up-rect">${posvotes}</div>
-      <div class="vote-tally-rect vote-dn-rect">${negvotes}</div>
+    <div class="postVoteContainer" data-postid="${postid}">
+      <div class="vote-tally-rect vote-up">${posvotes}</div>
+      <div class="vote-tally-rect vote-dn">${negvotes}</div>
     </div>
     <div class="postDisplayContainer">
       <div class="postBody">${body}</div> 
